@@ -1,0 +1,337 @@
+"""
+********************************************************************************
+natural convection of myself
+********************************************************************************
+"""
+
+import time
+import argparse
+from pathlib import Path
+
+import PIL
+import numpy as np
+import matplotlib.pyplot as plt
+
+import operators_2D
+
+################################################################################
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--rho", type=float, default=1e3, help="density")
+parser.add_argument("--mu", type=float, default=1e-3, help="dynamic viscosity")
+# parser.add_argument("--nu", type=float, default=1e-6, help="kinematic viscosity")   # computed
+parser.add_argument("--lam", type=float, default=.6, help="thermal conductivity")
+parser.add_argument("--cap", type=float, default=4.18e3, help="specific heat capacity")
+# parser.add_argument("--kap", type=float, default=1.44e-7, help="thermal diffusivity")   # computed
+parser.add_argument("--beta", type=float, default=2.1e-4, help="thermal expansion coefficient")
+parser.add_argument("--grav", type=float, default=9.81, help="gravitational acceleration")
+# parser.add_argument("-p", "--Prf", type=float, default=7., help="Prandtl numberf")
+# parser.add_argument("-rf", "--Ra", type=float, default=1e4, help="Rayleigh numberf")
+args = parser.parse_args()
+
+################################################################################
+
+def main():
+    # seed
+    np.random.seed(42)
+
+    # path
+    path_res = Path(f"me")
+    path_res.mkdir(exist_ok=True)
+
+    # image
+    img = PIL.Image.open(path_res / "me.jpg")
+    img = img.convert("L")  # convert to grayscale
+    img = np.array(img) / 255.  # normalize to [0, 1]
+    img = np.flipud(img)  # flip vertically
+    # img = 1. - img  # invert colors
+
+    Nx, Ny = 201, 201   # grid resolution
+    img = np.array(PIL.Image.fromarray(img).resize((Nx, Ny)))
+
+    # resolution for simulation
+    Nx_vel, Ny_vel = Nx + 2, Ny + 2
+    Nx_prs, Ny_prs = Nx + 1, Ny + 1
+    Lx, Ly = 1., 1.
+    dx, dy = Lx / (Nx - 1), Ly / (Ny - 1)
+
+    # scale temperature
+    h0, h1 = 20., 100.
+    h0, h1 = h0 + 273.15, h1 + 273.15
+    theta = h1 - h0
+
+    # params of the fluid (water)
+    rho = 1e3   # density [kg / m^3]
+    mu = 1e-3   # dynamic viscosity [Pa \cdot s]
+    nu = mu / rho   # kinematic viscosity [m^2 / s]
+    lam = .6   # thermal conductivity [W / (m \cdot K)]
+    cap = 4.18e3   # specific heat capacity [J / (kg \cdot K)]
+    kap = lam / (rho * cap)   # thermal diffusivity [m^2 / s]
+    beta = 2.1e-4   # thermal expansion coefficient [1 / K]
+    grav = 9.81   # gravitational acceleration [m / s^2]
+    Pr = nu / kap
+    Gr = (grav * beta * Ly**3 * theta) / nu**2
+    Ra = Pr * Gr
+
+    # boundary condition
+    bc = "natural"  # "natural" / "periodic"
+    # bc = "cold"  # "natural" / "periodic"
+    # bc = "periodic"  # "natural" / "periodic"
+
+    # variables
+    u = np.zeros((Nx_vel, Ny_vel)) + 0. * np.random.normal(size=(Nx_vel, Ny_vel))  # velocity in x-direction
+    v = np.zeros((Nx_vel, Ny_vel)) + 0. * np.random.normal(size=(Nx_vel, Ny_vel))  # velocity in y-direction
+    p = np.zeros((Nx_prs, Ny_prs)) + 0. * np.random.normal(size=(Nx_prs, Ny_prs))  # pressure
+    b = np.zeros((Nx_prs, Ny_prs)) + 0. * np.random.normal(size=(Nx_prs, Ny_prs))  # source for pressure poisson eq
+    # h = h0 * np.ones((Nx_vel, Ny_vel)) + 1. * np.random.normal(size=(Nx_vel, Ny_vel))  # temperature (no need for mapping)
+    h = np.array(PIL.Image.fromarray(img).resize((Nx, Ny)))
+    h = h.T
+    h = np.pad(h, pad_width=1, mode="constant", constant_values=1)
+    h = h0 + h * (h1 - h0)
+
+    # time
+    dim = 2.
+    Ux = 1.
+    dt1 = 1. * dx**1 / (Ux * dim)
+    dt2 = .5 * dx**2 / (nu * dim)
+    dt3 = .5 * dx**2 / (kap * dim)
+    dt = min(dt1, dt2, dt3)
+    print(f"dt1: {dt1:.3e}, dt2: {dt2:.3e}, dt3: {dt3:.3e}")
+    dt *= .4
+    T = 5. * 1.
+
+    maxiter_vel = int(T / dt)
+    maxiter_ppe = int(1e4)
+    tol_vel = 1e-6
+    tol_ppe = 1e-6
+
+    # visualize initial condition of h
+    fig, ax = plt.subplots()
+    levels = np.linspace(h0, h1, 32)
+    ticks = np.linspace(h0, h1, 5)
+    cf = ax.imshow(
+        h.T, cmap="magma", vmin=h0, vmax=h1,
+        aspect="equal", interpolation="lanczos", origin="lower",
+    )
+    cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical", label="Temperature [K]")
+    ax.set_aspect("equal")
+    ax.axis("off")
+    fig.tight_layout()
+    fig.savefig(path_res / "init_cond.png")
+    plt.close(fig)
+
+    # main
+    t = 0.
+    it_vel = 0
+    t -= dt
+    it_vel -= 1
+    res_vel = np.inf
+    while it_vel < maxiter_vel:
+        # update
+        t += dt
+        it_vel += 1
+
+        # previous velocity
+        u_old = np.copy(u)
+        v_old = np.copy(v)
+
+        # intermediate velocity
+        u_hat = np.copy(u)
+        v_hat = np.copy(v)
+
+        # advection
+        u_advc = operators_2D.advection(u_old, v_old, u_old, dx, dy, dt, scheme="KK")
+        v_advc = operators_2D.advection(u_old, v_old, v_old, dx, dy, dt, scheme="KK")
+
+        # diffusion
+        u_diff = operators_2D.diffusion(nu, u_old, dx, dy)
+        v_diff = operators_2D.diffusion(nu, v_old, dx, dy)
+
+        # buoyancy
+        buoyancy = (1. - beta * (h - h0)) * (- grav)
+        # buoyancy = (1. - beta * (h - h1)) * grav
+        # buoyancy = beta * (h - h0) * grav
+        # print(f"buoyancy.min(): {buoyancy.min():.6f}")
+        # print(f"buoyancy.max(): {buoyancy.max():.6f}")
+
+        # intermediate velocity
+        u_hat[2:-2, 2:-2] = u_old[2:-2, 2:-2] + dt * (- u_advc + u_diff)
+        v_hat[2:-2, 2:-2] = v_old[2:-2, 2:-2] + dt * (- v_advc + v_diff + buoyancy[2:-2, 2:-2])
+
+        # pressure poisson eq
+        div_hat = operators_2D.velocity_divergence(u_hat, v_hat, dx, dy)
+        b = rho / dt * div_hat
+        for it_ppe in range(maxiter_ppe+1):
+            p_old = np.copy(p)
+            p[1:-1, 1:-1] = 1. / (2. * (dx**2 + dy**2)) \
+                            * (
+                                - b[1:-1, 1:-1] * dx**2 * dy**2 \
+                                + (p_old[2:, 1:-1] + p_old[:-2, 1:-1]) * dy**2 \
+                                + (p_old[1:-1, 2:] + p_old[1:-1, :-2]) * dx**2
+                            )
+
+            if bc == "natural" or bc == "cold":
+                # Neumann boundary condition
+                # p[:, -1] = 0.   # North
+                p[:, -1] = p[:, -2]   # North
+                p[:,  0] = p[:,  1]   # South
+                p[-1, :] = p[-2, :]   # East
+                p[0,  :] = p[1,  :]   # West
+                # p[1,  1] = 0.         # bottom left corner
+
+            elif bc == "periodic":
+                # periodic boundary condition
+                p[:, -1] = p[:, -2]   # North
+                p[:,  0] = p[:,  1]   # South
+                p[-1, :] = p[1,  :]   # East = West interior
+                p[0,  :] = p[-2, :]   # West = East interior
+
+            # convergence?
+            p_flat = p.flatten()
+            p_old_flat = p_old.flatten()
+            res_ppe = np.linalg.norm(p_flat - p_old_flat, ord=2) / np.linalg.norm(p_old_flat, ord=2)
+            if it_ppe % int(maxiter_ppe / 5) == 0:
+                print(f"[PPE] it_ppe: {it_ppe:06d} / {maxiter_ppe:06d}, res_ppe: {res_ppe:.6e} / {tol_ppe:.6e}")
+            if res_ppe < tol_ppe:
+                print(f"[PPE] it_ppe: {it_ppe:06d} / {maxiter_ppe:06d}, res_ppe: {res_ppe:.6e} / {tol_ppe:.6e}")
+                print(f"[PPE] converged")
+                break
+
+        p_x, p_y = operators_2D.pressure_gradient(p, dx, dy)
+        u[2:-2, 2:-2] = u_hat[2:-2, 2:-2] + dt * (- p_x / rho)
+        v[2:-2, 2:-2] = v_hat[2:-2, 2:-2] + dt * (- p_y / rho)
+
+        if bc == "natural" or bc == "cold":
+            # no-slip boundary condition
+            u[:, -2:], v[:, -2:] = 0., 0.   # North
+            # u[:, -2:], v[:, -2:] = Ux, 0.   # North
+            u[:, :2] , v[:, :2]  = 0., 0.   # South
+            u[-2:, :], v[-2:, :] = 0., 0.   # East
+            u[:2, :] , v[:2, :]  = 0., 0.   # West
+
+        elif bc == "periodic":
+            # periodic boundary condition
+            u[:, -2:], v[:, -2:] = 0., 0.   # North
+            u[:, :2] , v[:, :2]  = 0., 0.   # South
+            u[-1, :] , v[-1, :]  = u[3,  :], v[3,  :]   # East
+            u[-2, :] , v[-2, :]  = u[2,  :], v[2,  :]   # East
+            u[0,  :] , v[0,  :]  = u[-4, :], v[-4, :]   # West
+            u[1,  :] , v[1,  :]  = u[-3, :], v[-3, :]   # West
+
+        # convergence?
+        u_flat = u.flatten()
+        v_flat = v.flatten()
+        u_old_flat = u_old.flatten()
+        v_old_flat = v_old.flatten()
+        res_u = np.linalg.norm(u_flat - u_old_flat, ord=2) / np.linalg.norm(u_old_flat, ord=2)
+        res_v = np.linalg.norm(v_flat - v_old_flat, ord=2) / np.linalg.norm(v_old_flat, ord=2)
+        res_vel = max(res_u, res_v)
+        # if res_vel < tol_vel:
+        #     print(f"[MAIN] converged")
+        #     break
+        print(f"\n****************************************************************")
+        print(f"[MAIN] t: {t:.3f} / {T:.3f}")
+        print(f"[MAIN] it_vel: {it_vel:06d} / {maxiter_vel:06d}")
+        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}")
+        print(f"[MAIN] res_vel: {res_vel:.6e} / {tol_vel:.6e}")
+
+        C = np.max(np.abs(u) * dt / dx + np.abs(v) * dt / dy)
+        D = np.max(nu * dt / dx**2 + nu * dt / dy**2)
+        K = np.max(kap * dt / dx**2 + kap * dt / dy**2)
+        print(f"[MAIN] Courant number    : {C:.6f} < 1.0")
+        print(f"[MAIN] diffusion number  : {D:.6f} < 0.5")
+        print(f"[MAIN] diffusivity number: {K:.6f} < 0.5")
+
+        vel_norm = np.sqrt(u**2 + v**2)
+        Re = np.max(vel_norm * Lx / nu)
+        print(f"[MAIN] Reynolds number: {Re:.3e}")
+        print(f"[MAIN] Prandtl number : {Pr:.3e}")
+        print(f"[MAIN] Grashof number : {Gr:.3e}")
+        print(f"[MAIN] Rayleigh number: {Ra:.3e}")
+        print(f"****************************************************************")
+
+        # print(f"[MAIN] dt: {dt:.3e}")
+        # dt1 = 1. * dx**1 / (np.max(vel_norm) * dim)
+        # dt2 = .5 * dx**2 / (nu * dim)
+        # dt3 = .5 * dx**2 / (kap * dim)
+        # dt = min(dt1, dt2, dt3)
+        # dt *= .4
+        # print(f"[MAIN] dt1: {dt1:.3e}")
+        # print(f"[MAIN] dt2: {dt2:.3e}")
+        # print(f"[MAIN] dt3: {dt3:.3e}")
+        # print(f"[MAIN] dt: {dt:.3e}")
+
+        ########################################################################
+        # temperature
+        h_old = np.copy(h)
+        h_advc = operators_2D.advection(u, v, h, dx, dy, dt, scheme="KK")
+        h_diff = operators_2D.diffusion(kap, h, dx, dy)
+        h[2:-2, 2:-2] = h_old[2:-2, 2:-2] + dt * (- h_advc + h_diff)
+
+        if bc == "natural":
+            # Neumann boundary condition
+            h[:, -2:] = h0   # North
+            h[:, :2]  = h1   # South
+            h[-2:, :] = h[-3, :]   # East
+            h[:2, :]  = h[2, :]    # West
+
+        elif bc == "cold":
+            # Dirichlet boundary condition
+            h[:, -2:] = h0   # North
+            h[:, :2]  = h1   # South
+            h[-2:, :] = h0   # East
+            h[:2, :]  = h0   # West
+
+        elif bc == "periodic":
+            # periodic boundary condition
+            h[:, -2:] = h0   # North
+            h[:, :2]  = h1   # South
+            h[-1, :]  = h[3,  :]   # East
+            h[-2, :]  = h[2,  :]   # East
+            h[0,  :]  = h[-4, :]   # West
+            h[1,  :]  = h[-3, :]   # West
+
+        ########################################################################
+
+        plot_every = .1   # plot every x seconds
+        if it_vel % int(plot_every / dt) == 0:
+
+            fig, ax = plt.subplots()
+            levels = np.linspace(h0, h1, 32)
+            ticks = np.linspace(h0, h1, 5)
+            cf = ax.imshow(
+                h.T, cmap="magma", vmin=h0, vmax=h1,
+                aspect="equal", interpolation="lanczos", origin="lower",
+            )
+            cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical", label="Temperature [K]")
+            ax.set_title(rf"$t={t:.3f} \text{{ [s]}}$")
+            ax.set_aspect("equal")
+            ax.axis("off")
+            fig.tight_layout()
+            fig.savefig(path_res / f"res.png")
+            fig.savefig(path_res / f"res_t{t:.3f}.png")
+            plt.close(fig)
+
+################################################################################
+
+def plot_setting():
+    plt.style.use("default")
+    plt.style.use("seaborn-v0_8-deep")
+    plt.style.use("seaborn-v0_8-talk")   # paper / notebook / talk / poster
+    # plt.style.use("classic")
+    plt.rcParams["font.family"] = "Times New Roman"
+    plt.rcParams["mathtext.fontset"] = "cm"
+    plt.rcParams["figure.figsize"] = (7, 5)
+    plt.rcParams["figure.autolayout"] = True
+    plt.rcParams["axes.grid"] = True
+    # plt.rcParams["axes.axisbelow"] = True   # background grid
+    plt.rcParams["grid.alpha"] = .3
+    plt.rcParams["legend.framealpha"] = .8
+    plt.rcParams["legend.facecolor"] = "w"
+    plt.rcParams["savefig.dpi"] = 300
+
+################################################################################
+
+if __name__ == "__main__":
+    plot_setting()
+    main()
