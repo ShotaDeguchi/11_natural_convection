@@ -37,6 +37,7 @@ def main():
 
     # domain
     Lx, Ly = 8., 1.
+    # Lx, Ly = 1., 2.
     h_res = 5e-3
     dx, dy = h_res, h_res
 
@@ -83,12 +84,13 @@ def main():
     p = np.zeros((Nx_prs, Ny_prs)) + 0. * np.random.normal(size=(Nx_prs, Ny_prs))  # pressure
     b = np.zeros((Nx_prs, Ny_prs)) + 0. * np.random.normal(size=(Nx_prs, Ny_prs))  # source for pressure poisson eq
     h = h0 * np.ones((Nx_vel, Ny_vel))
+    # h = h0 + (h1 - h0) * (1. - x_vel / Lx)
     # h = h0 + (h1 - h0) * (1. - y_vel / Ly)
-    # h[:, :Ny_vel//2] = h1
     h[:Nx_vel//2, :] = h1
+    # h[:, :Ny_vel//2] = h1
 
     # # sine-wave shaped interface
-    # amp = Ly / 10.     # amplitude of wave
+    # amp = Ly / 20.     # amplitude of wave
     # wav = 2. * np.pi / Lx  # one full wave across the x-domain
     # interface = Ly / 2. + amp * np.sin(wav * x_vel)
     # h = np.where(y_vel < interface, h1, h0)
@@ -97,7 +99,34 @@ def main():
     # interface = (Ly / Lx) * x_vel
     # h = np.where(y_vel < interface, h1, h0)
 
-    # # h = h[:,::-1]  # flip y-axis
+    # # layered structure
+    # n_layers = 8
+    # layer_height = Ly / n_layers
+    # for i in range(n_layers):
+    #     if i % 2 == 0:
+    #         h[:, int(i * layer_height / dy):int((i+1) * layer_height / dy)] = h0
+    #         # u[:, int(i * layer_height / dy):int((i+1) * layer_height / dy)] = -1.
+    #     else:
+    #         h[:, int(i * layer_height / dy):int((i+1) * layer_height / dy)] = h1
+    #         # u[:, int(i * layer_height / dy):int((i+1) * layer_height / dy)] = 1.
+
+    # # gaussian blob
+    # x0, y0, r0 = Lx / 2., Ly / 2., min(Lx, Ly) / 4.
+    # dist = np.sqrt((x_vel - x0)**2 + (y_vel - y0)**2)
+    # blob = np.exp(-(dist**2) / (2 * (r0 / 2.)**2))
+    # h += (h1 - h0) * blob
+
+    # # rotational initial velocity
+    # omega = 1.
+    # u = omega * (y_vel - y0)
+    # v = -omega * (x_vel - x0)
+
+    # # decay the velocity toward the boundary
+    # rot_mask = np.exp(-(dist**2) / (2 * r0**2))
+    # u = u * rot_mask
+    # v = v * rot_mask
+
+    # h = h[:,::-1]  # flip y-axis
     # h += np.random.normal(size=(Nx_vel, Ny_vel))   # add perturbation
 
     # time
@@ -110,7 +139,6 @@ def main():
     print(f"dt1: {dt1:.3e}, dt2: {dt2:.3e}, dt3: {dt3:.3e}")
     dt *= .4
 
-    # dt = dx / 20.
     T = 60. * 1.
     dump_out_interval = .5  # plot every ??? seconds
 
@@ -148,10 +176,6 @@ def main():
 
         # buoyancy
         buoyancy = (1. - beta * (h - h0)) * (- grav)
-        # buoyancy = (1. - beta * (h - h1)) * grav
-        # buoyancy = beta * (h - h0) * grav
-        # print(f"buoyancy.min(): {buoyancy.min():.6f}")
-        # print(f"buoyancy.max(): {buoyancy.max():.6f}")
 
         # intermediate velocity
         u_hat[2:-2, 2:-2] = u_old[2:-2, 2:-2] + dt * (- u_advc + u_diff)
@@ -203,7 +227,6 @@ def main():
         if bc == "natural" or bc == "cold":
             # no-slip boundary condition
             u[:, -2:], v[:, -2:] = 0., 0.   # North
-            # u[:, -2:], v[:, -2:] = Ux, 0.   # North
             u[:, :2] , v[:, :2]  = 0., 0.   # South
             u[-2:, :], v[-2:, :] = 0., 0.   # East
             u[:2, :] , v[:2, :]  = 0., 0.   # West
@@ -307,7 +330,10 @@ def main():
                 x_vel, y_vel, h,
                 levels=levels, cmap="turbo", extend="both"
             )
-            cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="horizontal")
+            if Lx > Ly:
+                cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="horizontal")
+            else:
+                cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical")
 
             # vel_norm = np.sqrt(u**2 + v**2)
             # vmin, vmax = np.min(vel_norm), np.max(vel_norm)
@@ -338,12 +364,12 @@ def main():
             #     color="w", pivot="mid"
             # )
             ax.set(
-                xticks=np.linspace(0., Lx, 5),
-                yticks=np.linspace(0., Ly, 5),
+                xticks=np.linspace(0., Lx, 3),
+                yticks=np.linspace(0., Ly, 3),
                 xlim=(0., Lx),
                 ylim=(0., Ly),
-                xlabel=rf"$x$",
-                ylabel=rf"$y$",
+                xlabel=rf"$x \text{{ [m]}}$",
+                ylabel=rf"$y \text{{ [m]}}$",
                 # title=rf"Velocity",
                 # title=rf"Temperature",
                 # title=rf"$t={t:.3f} / {T:.3f} \text{{ [s]}}$",
@@ -389,8 +415,8 @@ def main():
         #     )
 
         #     ax[0].set(
-        #         xticks=np.linspace(0., Lx, 5),
-        #         yticks=np.linspace(0., Ly, 5),
+        #         xticks=np.linspace(0., Lx, 3),
+        #         yticks=np.linspace(0., Ly, 3),
         #         xlim=(0., Lx),
         #         ylim=(0., Ly),
         #         xlabel=rf"$x$",
@@ -430,8 +456,8 @@ def main():
         #     cb = fig.colorbar(cf, ax=ax[1], ticks=ticks, orientation="horizontal")
 
         #     ax[1].set(
-        #         xticks=np.linspace(0., Lx, 5),
-        #         yticks=np.linspace(0., Ly, 5),
+        #         xticks=np.linspace(0., Lx, 3),
+        #         yticks=np.linspace(0., Ly, 3),
         #         xlim=(0., Lx),
         #         ylim=(0., Ly),
         #         xlabel=rf"$x$",
