@@ -74,7 +74,7 @@ def main():
     # bc = "periodic"  # "natural" / "periodic"
 
     # path
-    # path_res = Path(f"res_2D_Pr{Pr:.3e}_Ra{Ra:.3e}_{bc}")
+    # path_res = Path(f"res_2D_Pr{Pr:.6e}_Ra{Ra:.6e}_{bc}")
     path_res = Path(f"res_2D_test")
     path_res.mkdir(exist_ok=True)
 
@@ -136,11 +136,11 @@ def main():
     dt2 = .5 * dx**2 / (nu * n_dims)
     dt3 = .5 * dx**2 / (kap * n_dims)
     dt = min(dt1, dt2, dt3)
-    print(f"dt1: {dt1:.3e}, dt2: {dt2:.3e}, dt3: {dt3:.3e}")
+    print(f"dt1: {dt1:.6e}, dt2: {dt2:.6e}, dt3: {dt3:.6e}")
     dt *= .4
 
-    T = 60. * 1.
-    dump_out_interval = .5  # plot every ??? seconds
+    T = 60. * 3.
+    dump_int = 1.  # plot every ??? seconds
 
     maxiter_vel = int(T / dt)
     maxiter_ppe = int(1e4)
@@ -217,7 +217,7 @@ def main():
                 print(f"[PPE] it_ppe: {it_ppe:06d} / {maxiter_ppe:06d}, res_ppe: {res_ppe:.6e} / {tol_ppe:.6e}")
             if res_ppe < tol_ppe:
                 print(f"[PPE] it_ppe: {it_ppe:06d} / {maxiter_ppe:06d}, res_ppe: {res_ppe:.6e} / {tol_ppe:.6e}")
-                print(f"[PPE] converged")
+                print(f"[PPE] converged at it_ppe: {it_ppe:d}, res_ppe: {res_ppe:.6e}")
                 break
 
         p_x, p_y = operators_2D.pressure_gradient(p, dx, dy)
@@ -245,8 +245,15 @@ def main():
         v_flat = v.flatten()
         u_old_flat = u_old.flatten()
         v_old_flat = v_old.flatten()
-        res_u = np.linalg.norm(u_flat - u_old_flat, 2) / np.linalg.norm(u_old_flat, 2)
-        res_v = np.linalg.norm(v_flat - v_old_flat, 2) / np.linalg.norm(v_old_flat, 2)
+
+        # # relative L2 norm between the current and previous velocity
+        # res_u = np.linalg.norm(u_flat - u_old_flat, 2) / np.linalg.norm(u_old_flat, 2)
+        # res_v = np.linalg.norm(v_flat - v_old_flat, 2) / np.linalg.norm(v_old_flat, 2)
+
+        # finite difference approximation of the time derivative
+        res_u = np.linalg.norm(u_flat - u_old_flat, 2) / dt
+        res_v = np.linalg.norm(v_flat - v_old_flat, 2) / dt
+
         res_vel = max(res_u, res_v)
         # if res_vel < tol_vel:
         #     print(f"[MAIN] converged")
@@ -254,7 +261,7 @@ def main():
         print(f"\n****************************************************************")
         print(f"[MAIN] t: {t:.3f} / {T:.3f}")
         print(f"[MAIN] it_vel: {it_vel:06d} / {maxiter_vel:06d}")
-        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}")
+        print(f"[MAIN] dx: {dx:.6e}, dt: {dt:.6e}")
         print(f"[MAIN] res_vel: {res_vel:.6e} / {tol_vel:.6e}")
 
         C = np.max(np.abs(u) * dt / dx + np.abs(v) * dt / dy)
@@ -266,22 +273,22 @@ def main():
 
         vel_norm = np.sqrt(u**2 + v**2)
         Re = np.max(vel_norm * Lx / nu)
-        print(f"[MAIN] Reynolds number: {Re:.3e}")
-        print(f"[MAIN] Prandtl number : {Pr:.3e}")
-        print(f"[MAIN] Grashof number : {Gr:.3e}")
-        print(f"[MAIN] Rayleigh number: {Ra:.3e}")
+        print(f"[MAIN] Reynolds number: {Re:.6e}")
+        print(f"[MAIN] Prandtl number : {Pr:.6e}")
+        print(f"[MAIN] Grashof number : {Gr:.6e}")
+        print(f"[MAIN] Rayleigh number: {Ra:.6e}")
         print(f"****************************************************************")
 
-        # print(f"[MAIN] dt: {dt:.3e}")
+        # print(f"[MAIN] dt: {dt:.6e}")
         # dt1 = 1. * dx**1 / (np.max(vel_norm) * n_dims)
         # dt2 = .5 * dx**2 / (nu * n_dims)
         # dt3 = .5 * dx**2 / (kap * n_dims)
         # dt = min(dt1, dt2, dt3)
         # dt *= .4
-        # print(f"[MAIN] dt1: {dt1:.3e}")
-        # print(f"[MAIN] dt2: {dt2:.3e}")
-        # print(f"[MAIN] dt3: {dt3:.3e}")
-        # print(f"[MAIN] dt: {dt:.3e}")
+        # print(f"[MAIN] dt1: {dt1:.6e}")
+        # print(f"[MAIN] dt2: {dt2:.6e}")
+        # print(f"[MAIN] dt3: {dt3:.6e}")
+        # print(f"[MAIN] dt: {dt:.6e}")
 
         ########################################################################
         # temperature
@@ -321,7 +328,7 @@ def main():
 
         ########################################################################
 
-        if it_vel % int(dump_out_interval / dt) == 0:
+        if it_vel % int(dump_int / dt) == 0:
             fig, ax = plt.subplots(figsize=(7, 5))
 
             levels = np.linspace(h0, h1, 32)
@@ -330,10 +337,7 @@ def main():
                 x_vel, y_vel, h,
                 levels=levels, cmap="turbo", extend="both"
             )
-            if Lx > Ly:
-                cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="horizontal")
-            else:
-                cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical")
+            cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="horizontal")
 
             # vel_norm = np.sqrt(u**2 + v**2)
             # vmin, vmax = np.min(vel_norm), np.max(vel_norm)
@@ -363,8 +367,11 @@ def main():
             #     # u[1:-1:Nx_vel//20, 1:-1:Ny_vel//20], v[1:-1:Nx_vel//20, 1:-1:Ny_vel//20],
             #     color="w", pivot="mid"
             # )
+
+            Re_exponent = int(np.floor(np.log10(Re)))
+            Re_mantissa = Re / 10**Re_exponent
             ax.set(
-                xticks=np.linspace(0., Lx, 3),
+                xticks=np.linspace(0., Lx, 5),
                 yticks=np.linspace(0., Ly, 3),
                 xlim=(0., Lx),
                 ylim=(0., Ly),
@@ -372,8 +379,8 @@ def main():
                 ylabel=rf"$y \text{{ [m]}}$",
                 # title=rf"Velocity",
                 # title=rf"Temperature",
-                # title=rf"$t={t:.3f} / {T:.3f} \text{{ [s]}}$",
-                title=rf"$t={t:.3f} \text{{ [s]}}$",
+                # title=rf"$t={t:.2f} / {T:.2f} \text{{ [s]}}$",
+                title=rf"$t={t:.2f} \text{{ [s]}}, \ \text{{Re}}={Re_mantissa:.2f}\times10^{{{Re_exponent}}}$",
                 aspect="equal",
             )
 
@@ -382,6 +389,71 @@ def main():
             fig.savefig(path_res / f"res_t{t:.3f}.png", bbox_inches="tight")
             # fig.savefig(path_res / f"res_it{it_vel:06d}.png")
             plt.close(fig)
+
+        # ########################################################################
+
+            # fig, ax = plt.subplots(3, 1, figsize=(7, 12))
+
+            # levels = np.linspace(h0, h1, 32)
+            # ticks = np.linspace(h0, h1, 5)
+            # cf = ax[0].contourf(
+            #     x_vel, y_vel, h,
+            #     levels=levels, cmap="magma", extend="both"
+            # )
+            # cb = fig.colorbar(cf, ax=ax[0], ticks=ticks, orientation="horizontal", label=rf"$T \text{{ [K]}}$")
+            # ax[0].set(
+            #     title=rf"$t={t:.3f} \text{{ [s]}}$",
+            # )
+
+            # vel_norm = np.sqrt(u**2 + v**2)
+            # vmin, vmax = np.min(vel_norm), np.max(vel_norm)
+            # levels = np.linspace(vmin, vmax, 32)
+            # ticks = np.linspace(vmin, vmax, 5)
+            # cf = ax[1].contourf(
+            #     x_vel, y_vel, vel_norm,
+            #     levels=levels, cmap="turbo", extend="both"
+            # )
+            # cb = fig.colorbar(cf, ax=ax[1], ticks=ticks, orientation="horizontal", label=rf"$\| \boldsymbol{{u}} \| \text{{ [m/s]}}$")
+            # u_norm = u / vel_norm
+            # v_norm = v / vel_norm
+            # ax[1].quiver(
+            #     x_vel[1:-1:Nx_vel//20, 1:-1:Ny_vel//20], y_vel[1:-1:Nx_vel//20, 1:-1:Ny_vel//20],
+            #     u_norm[1:-1:Nx_vel//20, 1:-1:Ny_vel//20], v_norm[1:-1:Nx_vel//20, 1:-1:Ny_vel//20],
+            #     # u[1:-1:Nx_vel//20, 1:-1:Ny_vel//20], v[1:-1:Nx_vel//20, 1:-1:Ny_vel//20],
+            #     color="w", pivot="mid"
+            # )
+
+            # p_bar = p - np.mean(p)
+            # pmax = np.max(np.abs(p_bar))
+            # pmin = - pmax
+            # levels = np.linspace(pmin, pmax, 32)
+            # ticks = np.linspace(pmin, pmax, 5)
+            # cf = ax[2].contourf(
+            #     x_prs, y_prs, p_bar,
+            #     levels=levels, cmap="seismic", extend="both"
+            # )
+            # cb = fig.colorbar(cf, ax=ax[2], ticks=ticks, orientation="horizontal", label=rf"$\bar{{p}} \text{{ [Pa]}}$")
+
+            # for a in ax:
+            #     a.set(
+            #         xticks=np.linspace(0., Lx, 3),
+            #         yticks=np.linspace(0., Ly, 3),
+            #         xlim=(0., Lx),
+            #         ylim=(0., Ly),
+            #         xlabel=rf"$x \text{{ [m]}}$",
+            #         ylabel=rf"$y \text{{ [m]}}$",
+            #         # title=rf"Velocity",
+            #         # title=rf"Temperature",
+            #         # title=rf"$t={t:.3f} / {T:.3f} \text{{ [s]}}$",
+            #         # title=rf"$t={t:.3f} \text{{ [s]}}$",
+            #         aspect="equal",
+            #     )
+
+            # fig.tight_layout()
+            # fig.savefig(path_res / f"res.png", bbox_inches="tight")
+            # fig.savefig(path_res / f"res_t{t:.3f}.png", bbox_inches="tight")
+            # # fig.savefig(path_res / f"res_it{it_vel:06d}.png")
+            # plt.close(fig)
 
         # ########################################################################
 
@@ -441,8 +513,8 @@ def main():
         #     # p_bar = p / np.max(dyn_prs)
         #     # p_bar -= np.mean(p_bar)
 
-        #     print(f"p_bar.min(): {p_bar.min():.3e}")
-        #     print(f"p_bar.max(): {p_bar.max():.3e}")
+        #     print(f"p_bar.min(): {p_bar.min():.6e}")
+        #     print(f"p_bar.max(): {p_bar.max():.6e}")
 
         #     levels = np.linspace(-100., 0., 32)
         #     ticks = np.linspace(-100., 0., 5)
