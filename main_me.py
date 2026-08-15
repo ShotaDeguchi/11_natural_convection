@@ -96,7 +96,7 @@ def main():
     dt2 = .5 * dx**2 / (nu * dim)
     dt3 = .5 * dx**2 / (kap * dim)
     dt = min(dt1, dt2, dt3)
-    print(f"dt1: {dt1:.3e}, dt2: {dt2:.3e}, dt3: {dt3:.3e}")
+    print(f"dt1: {dt1:.6e}, dt2: {dt2:.6e}, dt3: {dt3:.6e}")
     dt *= .4
     T = 5. * 1.
 
@@ -230,9 +230,9 @@ def main():
         #     print(f"[MAIN] converged")
         #     break
         print(f"\n****************************************************************")
-        print(f"[MAIN] t: {t:.3f} / {T:.3f}")
+        print(f"[MAIN] t: {t:.6f} / {T:.6f}")
         print(f"[MAIN] it_vel: {it_vel:06d} / {maxiter_vel:06d}")
-        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}")
+        print(f"[MAIN] dx: {dx:.6e}, dt: {dt:.6e}")
         print(f"[MAIN] res_vel: {res_vel:.6e} / {tol_vel:.6e}")
 
         C = np.max(np.abs(u) * dt / dx + np.abs(v) * dt / dy)
@@ -244,22 +244,22 @@ def main():
 
         vel_norm = np.sqrt(u**2 + v**2)
         Re = np.max(vel_norm * Lx / nu)
-        print(f"[MAIN] Reynolds number: {Re:.3e}")
-        print(f"[MAIN] Prandtl number : {Pr:.3e}")
-        print(f"[MAIN] Grashof number : {Gr:.3e}")
-        print(f"[MAIN] Rayleigh number: {Ra:.3e}")
+        print(f"[MAIN] Reynolds number: {Re:.6e}")
+        print(f"[MAIN] Prandtl number : {Pr:.6e}")
+        print(f"[MAIN] Grashof number : {Gr:.6e}")
+        print(f"[MAIN] Rayleigh number: {Ra:.6e}")
         print(f"****************************************************************")
 
-        # print(f"[MAIN] dt: {dt:.3e}")
+        # print(f"[MAIN] dt: {dt:.6e}")
         # dt1 = 1. * dx**1 / (np.max(vel_norm) * dim)
         # dt2 = .5 * dx**2 / (nu * dim)
         # dt3 = .5 * dx**2 / (kap * dim)
         # dt = min(dt1, dt2, dt3)
         # dt *= .4
-        # print(f"[MAIN] dt1: {dt1:.3e}")
-        # print(f"[MAIN] dt2: {dt2:.3e}")
-        # print(f"[MAIN] dt3: {dt3:.3e}")
-        # print(f"[MAIN] dt: {dt:.3e}")
+        # print(f"[MAIN] dt1: {dt1:.6e}")
+        # print(f"[MAIN] dt2: {dt2:.6e}")
+        # print(f"[MAIN] dt3: {dt3:.6e}")
+        # print(f"[MAIN] dt: {dt:.6e}")
 
         ########################################################################
         # temperature
@@ -304,12 +304,40 @@ def main():
                 aspect="equal", interpolation="lanczos", origin="lower",
             )
             cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical", label="Temperature [K]")
-            ax.set_title(rf"$t={t:.3f} \text{{ [s]}}$")
+
+            # vel_norm = np.sqrt(u**2 + v**2)
+            # vmin, vmax = 0., np.max(vel_norm)
+            # levels = np.linspace(vmin, vmax, 32)
+            # ticks = np.linspace(vmin, vmax, 5)
+            # cf = ax.imshow(
+            #     vel_norm.T, cmap="turbo", vmin=vmin, vmax=vmax,
+            #     aspect="equal", interpolation="lanczos", origin="lower",
+            # )
+            # cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical", label="Velocity norm [m/s]")
+            # skip = 1
+            # x = np.linspace(0., Lx, Nx_vel)[::skip]
+            # y = np.linspace(0., Ly, Ny_vel)[::skip]
+            # X, Y = np.meshgrid(x, y, indexing="ij")
+            # U = u[::skip, ::skip]
+            # V = v[::skip, ::skip]
+            # ax.quiver(X, Y, U, V, color="white",)
+
+            # prs_bar = p - np.mean(p)
+            # vmin, vmax = np.min(prs_bar), np.max(prs_bar)
+            # levels = np.linspace(vmin, vmax, 32)
+            # ticks = np.linspace(vmin, vmax, 5)
+            # cf = ax.imshow(
+            #     prs_bar.T, cmap="RdBu_r", vmin=vmin, vmax=vmax,
+            #     aspect="equal", interpolation="lanczos", origin="lower",
+            # )
+            # cb = fig.colorbar(cf, ax=ax, ticks=ticks, orientation="vertical", label="Pressure [Pa]")
+
+            ax.set_title(rf"$t={t:.6f} \text{{ [s]}}$")
             ax.set_aspect("equal")
             ax.axis("off")
             fig.tight_layout()
             fig.savefig(path_res / f"res.png")
-            fig.savefig(path_res / f"res_t{t:.3f}.png")
+            fig.savefig(path_res / f"res_t{t:.6f}.png")
             plt.close(fig)
 
 ################################################################################
@@ -325,7 +353,7 @@ def plot_setting():
     plt.rcParams["figure.autolayout"] = True
     plt.rcParams["axes.grid"] = True
     # plt.rcParams["axes.axisbelow"] = True   # background grid
-    plt.rcParams["grid.alpha"] = .3
+    plt.rcParams["grid.alpha"] = .6
     plt.rcParams["legend.framealpha"] = .8
     plt.rcParams["legend.facecolor"] = "w"
     plt.rcParams["savefig.dpi"] = 300

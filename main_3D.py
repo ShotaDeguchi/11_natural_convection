@@ -37,8 +37,8 @@ def main():
     np.random.seed(42)
 
     # domain
-    Lx, Ly, Lz = 2., 2., 1.
-    h_res = 2e-2
+    Lx, Ly, Lz = 1., 1., .1
+    h_res = 4e-3
     dx, dy, dz = h_res, h_res, h_res
 
     # arakawa-b grid
@@ -50,8 +50,14 @@ def main():
     Nx_prs, Ny_prs, Nz_prs = len(x_prs), len(y_prs), len(z_prs)
     x_prs, y_prs, z_prs = np.meshgrid(x_prs, y_prs, z_prs, indexing="ij")
 
+    print(f"Nx_vel: {Nx_vel:d}, Ny_vel: {Ny_vel:d}, Nz_vel: {Nz_vel:d}")
+    print(f"Nx_prs: {Nx_prs:d}, Ny_prs: {Ny_prs:d}, Nz_prs: {Nz_prs:d}")
+    dof = Nx_vel * Ny_vel * Nz_vel * 3 + Nx_prs * Ny_prs * Nz_prs
+    print(f"DOF: {dof:d}")
+
     # boundary temperature
     h0, h1 = 20., 100.
+    h0, h1 = 20., 20. + 1e1
     h0, h1 = h0 + 273.15, h1 + 273.15
     theta = h1 - h0
 
@@ -64,19 +70,21 @@ def main():
     kap = lam / (rho * cap)   # thermal diffusivity [m^2 / s]
     beta = 2.1e-4   # thermal expansion coefficient [1 / K]
     grav = 9.81   # gravitational acceleration [m / s^2]
-    # grav = np.array([grav, grav, grav])   # vector
     Pr = nu / kap
     Gr = (grav * beta * Lz**3 * theta) / nu**2
     Ra = Pr * Gr
+    print(f"Prandtl number : {Pr:.3e}")
+    print(f"Grashof number : {Gr:.3e}")
+    print(f"Rayleigh number: {Ra:.3e}")
 
     # boundary condition
     # bc = "cold"  # "natural" / "periodic"
-    bc = "natural"  # "natural" / "periodic"
-    # bc = "periodic"  # "natural" / "periodic"
+    # bc = "natural"  # "natural" / "periodic"
+    bc = "periodic"  # "natural" / "periodic"
 
     # path
-    path_res = Path(f"res_3D_Pr{Pr:.3e}_Ra{Ra:.3e}_{bc}")
-    # path_res = Path(f"res_3D_Pr{Pr:.3e}_Ra{Ra:.3e}_{bc}_test")
+    path_res = Path(f"res_3D_test")
+    # path_res = Path(f"res_3D_Pr{Pr:.3e}_Ra{Ra:.3e}_{bc}")
     path_fig = path_res / "fig"
     path_fig.mkdir(parents=True, exist_ok=True)
     path_npz = path_res / "npz"
@@ -88,22 +96,24 @@ def main():
     w = np.zeros((Nx_vel, Ny_vel, Nz_vel)) + 0. * np.random.normal(size=(Nx_vel, Ny_vel, Nz_vel))  # velocity in z-direction
     p = np.zeros((Nx_prs, Ny_prs, Nz_prs)) + 0. * np.random.normal(size=(Nx_prs, Ny_prs, Nz_prs))  # pressure
     b = np.zeros((Nx_prs, Ny_prs, Nz_prs)) + 0. * np.random.normal(size=(Nx_prs, Ny_prs, Nz_prs))  # source for pressure poisson eq
-    h = h0 * np.ones((Nx_vel, Ny_vel, Nz_vel)) + 1. * np.random.normal(size=(Nx_vel, Ny_vel, Nz_vel))  # temperature (no need for mapping)
-
-    h = h0 + (h1 - h0) * (1. - z_vel / Lz) + 1. * np.random.normal(size=(Nx_vel, Ny_vel, Nz_vel))  # h(y=Ly)=h0 (top), h(y=0)=h1 (bottom)
+    h = h0 * np.ones((Nx_vel, Ny_vel, Nz_vel)) + 0. * np.random.normal(size=(Nx_vel, Ny_vel, Nz_vel))  # temperature (no need for mapping)
+    h = h0 + (h1 - h0) * (Lz - z_vel) / Lz + 0. * np.random.normal(size=(Nx_vel, Ny_vel, Nz_vel))  # h(y=Ly)=h0 (top), h(y=0)=h1 (bottom)
+    # h = h0 + (h1 - h0) * (Lx - x_vel) / Lx + 0. * np.random.normal(size=(Nx_vel, Ny_vel, Nz_vel))  # h(x=Lx)=h0 (right), h(x=0)=h1 (left)
+    # h = h[:, :, ::-1]
 
     # time
-    dim = 3.
+    n_dims = 3.
     Ux = 1.
-    dt1 = 1. * dx**1 / (Ux * dim)
-    dt2 = .5 * dx**2 / (nu * dim)
-    dt3 = .5 * dx**2 / (kap * dim)
-    dt = min(dt1, dt2, dt3)
+    dt1 = 1. * dx**1 / (Ux * n_dims)
+    dt2 = .5 * dx**2 / (nu * n_dims)
+    dt3 = .5 * dx**2 / (kap * n_dims)
     print(f"dt1: {dt1:.3e}, dt2: {dt2:.3e}, dt3: {dt3:.3e}")
+    dt = min(dt1, dt2, dt3)
     dt *= .4
 
-    dt = dx / 20.
-    T = 60. * 1.
+    dt = dx / 5.
+    T = 60. * 3.
+    dump_out_interval = 1.   # plot every ??? seconds
 
     maxiter_vel = int(T / dt)
     maxiter_ppe = int(1e4)
@@ -143,7 +153,6 @@ def main():
 
         # buoyancy
         buoyancy = (1. - beta * (h - h0)) * (- grav)
-        # buoyancy = (1. - beta * (h - h1)) * grav
         # buoyancy = beta * (h - h0) * grav
         # print(f"buoyancy.min(): {buoyancy.min():.6f}")
         # print(f"buoyancy.max(): {buoyancy.max():.6f}")
@@ -193,7 +202,7 @@ def main():
                 print(f"[PPE] it_ppe: {it_ppe:06d} / {maxiter_ppe:06d}, res_ppe: {res_ppe:.6e} / {tol_ppe:.6e}")
             if res_ppe < tol_ppe:
                 print(f"[PPE] it_ppe: {it_ppe:06d} / {maxiter_ppe:06d}, res_ppe: {res_ppe:.6e} / {tol_ppe:.6e}")
-                print(f"[PPE] converged")
+                print(f"[PPE] converged at it_ppe: {it_ppe:d}, res_ppe: {res_ppe:.6e}")
                 break
 
         p_x, p_y, p_z = operators_3D.pressure_gradient(p, dx, dy, dz)
@@ -242,7 +251,7 @@ def main():
         print(f"\n****************************************************************")
         print(f"[MAIN] t: {t:.3f} / {T:.3f}")
         print(f"[MAIN] it_vel: {it_vel:06d} / {maxiter_vel:06d}")
-        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}")
+        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}, DOF: {dof:d}")
         print(f"[MAIN] res_vel: {res_vel:.6e} / {tol_vel:.6e}")
 
         C = np.max(np.abs(u) * dt / dx + np.abs(v) * dt / dy + np.abs(w) * dt / dz)
@@ -253,7 +262,7 @@ def main():
         print(f"[MAIN] diffusivity number: {K:.6f} < 0.5")
 
         vel_norm = np.sqrt(u**2 + v**2 + w**2)
-        Re = np.max(vel_norm * Lx / nu)
+        Re = np.max(vel_norm * h_res / nu)
         print(f"[MAIN] Reynolds number: {Re:.3e}")
         print(f"[MAIN] Prandtl number : {Pr:.3e}")
         print(f"[MAIN] Grashof number : {Gr:.3e}")
@@ -261,9 +270,9 @@ def main():
         print(f"****************************************************************")
 
         # print(f"[MAIN] dt: {dt:.3e}")
-        # dt1 = 1. * dx**1 / (np.max(vel_norm) * dim)
-        # dt2 = .5 * dx**2 / (nu * dim)
-        # dt3 = .5 * dx**2 / (kap * dim)
+        # dt1 = 1. * dx**1 / (np.max(vel_norm) * n_dims)
+        # dt2 = .5 * dx**2 / (nu * n_dims)
+        # dt3 = .5 * dx**2 / (kap * n_dims)
         # dt = min(dt1, dt2, dt3)
         # dt *= .4
         # print(f"[MAIN] dt1: {dt1:.3e}")
@@ -305,60 +314,9 @@ def main():
             h[:, :,  :2] = h1   # z = zmin plane
             h[:, :, -2:] = h0   # z = zmax plane
 
-        # # print to check periodicity
-        # print(f"\nh[ 0, Ny_vel//2, Nz_vel//2]: {h[0, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[ 1, Ny_vel//2, Nz_vel//2]: {h[1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[ 2, Ny_vel//2, Nz_vel//2]: {h[2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[ 3, Ny_vel//2, Nz_vel//2]: {h[3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[-1, Ny_vel//2, Nz_vel//2]: {h[-1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[-2, Ny_vel//2, Nz_vel//2]: {h[-2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[-3, Ny_vel//2, Nz_vel//2]: {h[-3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"h[-4, Ny_vel//2, Nz_vel//2]: {h[-4, Ny_vel//2, Nz_vel//2]}")
-
-        # print(f"\nu[ 0, Ny_vel//2, Nz_vel//2]: {u[0, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[ 1, Ny_vel//2, Nz_vel//2]: {u[1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[ 2, Ny_vel//2, Nz_vel//2]: {u[2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[ 3, Ny_vel//2, Nz_vel//2]: {u[3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[-1, Ny_vel//2, Nz_vel//2]: {u[-1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[-2, Ny_vel//2, Nz_vel//2]: {u[-2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[-3, Ny_vel//2, Nz_vel//2]: {u[-3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"u[-4, Ny_vel//2, Nz_vel//2]: {u[-4, Ny_vel//2, Nz_vel//2]}")
-
-        # print(f"\nv[ 0, Ny_vel//2, Nz_vel//2]: {v[0, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[ 1, Ny_vel//2, Nz_vel//2]: {v[1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[ 2, Ny_vel//2, Nz_vel//2]: {v[2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[ 3, Ny_vel//2, Nz_vel//2]: {v[3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[-1, Ny_vel//2, Nz_vel//2]: {v[-1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[-2, Ny_vel//2, Nz_vel//2]: {v[-2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[-3, Ny_vel//2, Nz_vel//2]: {v[-3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"v[-4, Ny_vel//2, Nz_vel//2]: {v[-4, Ny_vel//2, Nz_vel//2]}")
-
-        # print(f"\nw[ 0, Ny_vel//2, Nz_vel//2]: {w[0, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[ 1, Ny_vel//2, Nz_vel//2]: {w[1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[ 2, Ny_vel//2, Nz_vel//2]: {w[2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[ 3, Ny_vel//2, Nz_vel//2]: {w[3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[-1, Ny_vel//2, Nz_vel//2]: {w[-1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[-2, Ny_vel//2, Nz_vel//2]: {w[-2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[-3, Ny_vel//2, Nz_vel//2]: {w[-3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"w[-4, Ny_vel//2, Nz_vel//2]: {w[-4, Ny_vel//2, Nz_vel//2]}")
-
-        # print(f"\np[ 0, Ny_vel//2, Nz_vel//2]: {p[0, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[ 1, Ny_vel//2, Nz_vel//2]: {p[1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[ 2, Ny_vel//2, Nz_vel//2]: {p[2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[ 3, Ny_vel//2, Nz_vel//2]: {p[3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[-1, Ny_vel//2, Nz_vel//2]: {p[-1, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[-2, Ny_vel//2, Nz_vel//2]: {p[-2, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[-3, Ny_vel//2, Nz_vel//2]: {p[-3, Ny_vel//2, Nz_vel//2]}")
-        # print(f"p[-4, Ny_vel//2, Nz_vel//2]: {p[-4, Ny_vel//2, Nz_vel//2]}")
-
         ########################################################################
 
-        plot_every = 1.   # plot every x seconds
-        if it_vel % int(plot_every / dt) == 0:
-
-        # if it_vel % 400 == 0:
-        # if it_vel % 800 == 0:
-        # if it_vel % 1000 == 0:
+        if it_vel % int(dump_out_interval / dt) == 0:
             # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
             # cf = ax.scatter(
@@ -406,57 +364,74 @@ def main():
 
             fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
-            iso_vals = np.linspace(np.round(h0, 2), np.round(h1, 2), 5)
-            iso_vals = np.linspace(np.round(h0+10., 2), np.round(h1-10., 2), 5)
-            colors = plt.cm.turbo(np.linspace(0., 1., len(iso_vals)))
-            alphas = np.linspace(.8, .9, len(iso_vals))
-            # alphas = np.linspace(.1, .2, len(iso_vals))
-            # alphas = alphas[::-1]  # reverse order for better visibility
-            norm = mcolors.Normalize(vmin=min(iso_vals), vmax=max(iso_vals))
-            spacing = (dx, dy, dz)
-            for iso_val, color, alpha in zip(iso_vals, colors, alphas):
-                try:
-                    verts, faces, _, _ = skimage.measure.marching_cubes(
-                        h_masked[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
-                        # h[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
-                    )
-                    ax.plot_trisurf(
-                        verts[:, 0], verts[:, 1], verts[:, 2], triangles=faces,
-                        color=color, alpha=alpha, shade=True,
-                    )
-                except:
-                    continue
-            handles = [
-                plt.Line2D([0], [0], marker="s", color="w", markerfacecolor=color, alpha=alpha, label=rf"$T = {iso_val} \text{{ [K]}}$")
-                for color, alpha, iso_val in zip(colors, alphas, iso_vals)
-            ]
-            ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(.95, 1.1))
-
-            iso_vals = np.linspace(h0, h1, 5)
-            iso_vals = np.linspace(h0+10., h1-10., 5)
-            colors = plt.cm.turbo(np.linspace(0., 1., len(iso_vals)))
+            # # masked
+            # iso_vals = np.linspace(np.round(h0+10., 2), np.round(h1-10., 2), 5)
+            # colors = plt.cm.turbo(np.linspace(0., 1., len(iso_vals)))
             # alphas = np.linspace(.8, .9, len(iso_vals))
-            alphas = np.linspace(.1, .2, len(iso_vals))
-            # alphas = alphas[::-1]  # reverse order for better visibility
-            norm = mcolors.Normalize(vmin=min(iso_vals), vmax=max(iso_vals))
-            spacing = (dx, dy, dz)
-            for iso_val, color, alpha in zip(iso_vals, colors, alphas):
-                try:
-                    verts, faces, _, _ = skimage.measure.marching_cubes(
-                        # h_masked[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
-                        h[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
-                    )
-                    ax.plot_trisurf(
-                        verts[:, 0], verts[:, 1], verts[:, 2], triangles=faces,
-                        color=color, alpha=alpha, shade=True,
-                    )
-                except:
-                    continue
+            # # alphas = np.linspace(.1, .2, len(iso_vals))
+            # # alphas = alphas[::-1]  # reverse order for better visibility
+            # norm = mcolors.Normalize(vmin=min(iso_vals), vmax=max(iso_vals))
+            # spacing = (dx, dy, dz)
+            # for iso_val, color, alpha in zip(iso_vals, colors, alphas):
+            #     try:
+            #         verts, faces, _, _ = skimage.measure.marching_cubes(
+            #             h_masked[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
+            #             # h[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
+            #         )
+            #         ax.plot_trisurf(
+            #             verts[:, 0], verts[:, 1], verts[:, 2], triangles=faces,
+            #             color=color, alpha=alpha, shade=True,
+            #         )
+            #     except:
+            #         continue
             # handles = [
             #     plt.Line2D([0], [0], marker="s", color="w", markerfacecolor=color, alpha=alpha, label=rf"$T = {iso_val} \text{{ [K]}}$")
             #     for color, alpha, iso_val in zip(colors, alphas, iso_vals)
             # ]
             # ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(.95, 1.1))
+
+            # # non-masked
+            # iso_vals = np.linspace(h0+10., h1-10., 5)
+            # colors = plt.cm.turbo(np.linspace(0., 1., len(iso_vals)))
+            # alphas = np.linspace(.8, .9, len(iso_vals))
+            # # alphas = np.linspace(.1, .2, len(iso_vals))
+            # # alphas = alphas[::-1]  # reverse order for better visibility
+            # norm = mcolors.Normalize(vmin=min(iso_vals), vmax=max(iso_vals))
+            # spacing = (dx, dy, dz)
+            # for iso_val, color, alpha in zip(iso_vals, colors, alphas):
+            #     try:
+            #         verts, faces, _, _ = skimage.measure.marching_cubes(
+            #             # h_masked[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
+            #             h[1:-1, 1:-1, 1:-1], level=iso_val, spacing=spacing,
+            #         )
+            #         ax.plot_trisurf(
+            #             verts[:, 0], verts[:, 1], verts[:, 2], triangles=faces,
+            #             color=color, alpha=alpha, shade=True,
+            #         )
+            #     except:
+            #         continue
+            # # handles = [
+            # #     plt.Line2D([0], [0], marker="s", color="w", markerfacecolor=color, alpha=alpha, label=rf"$T = {iso_val} \text{{ [K]}}$")
+            # #     for color, alpha, iso_val in zip(colors, alphas, iso_vals)
+            # # ]
+            # # ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(.95, 1.1))
+
+            # scatter plot with color
+            mask = (y_vel >= Ly/2) | (x_vel <= Lx/2)
+            mask &= (
+                (x_vel >= 1*dx) & (x_vel <= Lx-1*dx) &
+                (y_vel >= 1*dy) & (y_vel <= Ly-1*dy) &
+                (z_vel >= 1*dz) & (z_vel <= Lz-1*dz)
+            )
+            ticks = np.linspace(h0, h1, 5)
+            cf = ax.scatter(
+                x_vel[mask],
+                y_vel[mask],
+                z_vel[mask],
+                c=h[mask],
+                vmin=h0, vmax=h1, cmap="turbo", alpha=1, s=5
+            )
+            fig.colorbar(cf, ax=ax, ticks=ticks, shrink=0.7, pad=0.1, label=rf"$\text{{Temperature [K]}}$")
 
             cube_vertices = [
                 [0, 0, 0],  [Lx, 0, 0],  [Lx, Ly, 0],  [0, Ly, 0],   # bottom face
@@ -469,7 +444,7 @@ def main():
             ]
             for edge in cube_edges:
                 points = [cube_vertices[edge[0]], cube_vertices[edge[1]]]
-                ax.plot3D(*zip(*points), "k-", alpha=.3, zorder=10)
+                ax.plot3D(*zip(*points), c="k", ls="-", alpha=.2, zorder=10)
             ax.set(
                 xticks=np.linspace(0., Lx, 2),
                 yticks=np.linspace(0., Ly, 2),
@@ -481,7 +456,7 @@ def main():
                 # ylabel=rf"$y \text{{ [m]}}$",
                 # zlabel=rf"$z \text{{ [m]}}$",
                 # title=rf"$t={t:.3f} / {T:.3f} \text{{ [s]}}$",
-                title=rf"$t={t:.3f} \text{{ [s]}}$",
+                title=rf"$t={t:.3f} \text{{ [s]}}, \ \text{{Re}}={Re:.2f}$",
                 aspect="equal",
             )
             fig.tight_layout()
