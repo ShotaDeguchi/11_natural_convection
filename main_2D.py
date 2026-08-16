@@ -139,7 +139,7 @@ def main():
     print(f"dt1: {dt1:.6e}, dt2: {dt2:.6e}, dt3: {dt3:.6e}")
     dt *= .4
 
-    T = 60. * 3.
+    T = 60. * 1.
     dump_int = 1.  # plot every ??? seconds
 
     maxiter_vel = int(T / dt)

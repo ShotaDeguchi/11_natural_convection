@@ -90,11 +90,11 @@ def main():
     h = h0 + h * (h1 - h0)
 
     # time
-    dim = 2.
+    n_dims = 2.
     Ux = 1.
-    dt1 = 1. * dx**1 / (Ux * dim)
-    dt2 = .5 * dx**2 / (nu * dim)
-    dt3 = .5 * dx**2 / (kap * dim)
+    dt1 = 1. * dx**1 / (Ux * n_dims)
+    dt2 = .5 * dx**2 / (nu * n_dims)
+    dt3 = .5 * dx**2 / (kap * n_dims)
     dt = min(dt1, dt2, dt3)
     print(f"dt1: {dt1:.6e}, dt2: {dt2:.6e}, dt3: {dt3:.6e}")
     dt *= .4
@@ -251,9 +251,9 @@ def main():
         print(f"****************************************************************")
 
         # print(f"[MAIN] dt: {dt:.6e}")
-        # dt1 = 1. * dx**1 / (np.max(vel_norm) * dim)
-        # dt2 = .5 * dx**2 / (nu * dim)
-        # dt3 = .5 * dx**2 / (kap * dim)
+        # dt1 = 1. * dx**1 / (np.max(vel_norm) * n_dims)
+        # dt2 = .5 * dx**2 / (nu * n_dims)
+        # dt3 = .5 * dx**2 / (kap * n_dims)
         # dt = min(dt1, dt2, dt3)
         # dt *= .4
         # print(f"[MAIN] dt1: {dt1:.6e}")
