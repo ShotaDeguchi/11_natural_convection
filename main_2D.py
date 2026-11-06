@@ -70,7 +70,7 @@ def main():
 
     # boundary condition
     bc = "natural"  # "natural" / "periodic"
-    # bc = "cold"  # "natural" / "periodic"
+    # bc = "essential"  # "natural" / "periodic"
     # bc = "periodic"  # "natural" / "periodic"
 
     # path
@@ -193,7 +193,7 @@ def main():
                                 + (p_old[1:-1, 2:] + p_old[1:-1, :-2]) * dx**2
                             )
 
-            if bc == "natural" or bc == "cold":
+            if bc == "natural" or bc == "essential":
                 # Neumann boundary condition
                 # p[:, -1] = 0.   # North
                 p[:, -1] = p[:, -2]   # North
@@ -224,7 +224,7 @@ def main():
         u[2:-2, 2:-2] = u_hat[2:-2, 2:-2] + dt * (- p_x / rho)
         v[2:-2, 2:-2] = v_hat[2:-2, 2:-2] + dt * (- p_y / rho)
 
-        if bc == "natural" or bc == "cold":
+        if bc == "natural" or bc == "essential":
             # no-slip boundary condition
             u[:, -2:], v[:, -2:] = 0., 0.   # North
             u[:, :2] , v[:, :2]  = 0., 0.   # South
@@ -310,7 +310,7 @@ def main():
             # h[-2:, :] = h0   # East
             # h[:2, :]  = h1   # West
 
-        elif bc == "cold":
+        elif bc == "essential":
             # Dirichlet boundary condition
             h[:, -2:] = h0   # North
             h[:, :2]  = h1   # South

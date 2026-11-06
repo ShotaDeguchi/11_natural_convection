@@ -78,7 +78,7 @@ def main():
     print(f"Rayleigh number: {Ra:.3e}")
 
     # boundary condition
-    # bc = "cold"  # "natural" / "periodic"
+    # bc = "essential"  # "natural" / "periodic"
     # bc = "natural"  # "natural" / "periodic"
     bc = "periodic"  # "natural" / "periodic"
 
@@ -175,7 +175,7 @@ def main():
                                 + (p_old[1:-1, 1:-1, 2:] + p_old[1:-1, 1:-1, :-2]) * dx**2 * dy**2
                             )
 
-            if bc == "natural" or bc == "cold":
+            if bc == "natural" or bc == "essential":
                 # Neumann boundary condition
                 p[0,  :, :] = p[1,  :, :]   # x = xmin plane
                 p[-1, :, :] = p[-2, :, :]   # x = xmax plane
@@ -210,7 +210,7 @@ def main():
         v[2:-2, 2:-2, 2:-2] = v_hat[2:-2, 2:-2, 2:-2] + dt * (- p_y / rho)
         w[2:-2, 2:-2, 2:-2] = w_hat[2:-2, 2:-2, 2:-2] + dt * (- p_z / rho)
 
-        if bc == "natural" or bc == "cold":
+        if bc == "natural" or bc == "essential":
             # no-slip boundary condition
             u[:2,  :, :], v[:2,  :, :], w[:2,  :, :] = 0., 0., 0.   # x = xmin plane
             u[-2:, :, :], v[-2:, :, :], w[-2:, :, :] = 0., 0., 0.   # x = xmax plane
@@ -296,7 +296,7 @@ def main():
             h[:, :,  :2] = h1   # z = zmin plane
             h[:, :, -2:] = h0   # z = zmax plane
 
-        elif bc == "cold":
+        elif bc == "essential":
             # Dirichlet boundary condition
             h[:2,  :, :] = h0   # x = xmin plane
             h[-2:, :, :] = h0   # x = xmax plane
