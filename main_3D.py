@@ -104,9 +104,9 @@ def main():
     # time
     n_dims = 3.
     Ux = 1.
-    dt1 = 1. * dx**1 / (Ux * n_dims)
-    dt2 = .5 * dx**2 / (nu * n_dims)
-    dt3 = .5 * dx**2 / (kap * n_dims)
+    dt1 = 1. * dx**1 / (Ux * n_dims)   # advection
+    dt2 = .5 * dx**2 / (nu * n_dims)   # diffusion (fluid)
+    dt3 = .5 * dx**2 / (kap * n_dims)   # diffusion (temperature)
     print(f"dt1: {dt1:.3e}, dt2: {dt2:.3e}, dt3: {dt3:.3e}")
     dt = min(dt1, dt2, dt3)
     dt *= .4
