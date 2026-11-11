@@ -36,8 +36,7 @@ def main():
     np.random.seed(42)
 
     # domain
-    Lx, Ly = 8., 1.
-    # Lx, Ly = 1., 2.
+    Lx, Ly = 8., 1.   # wide and short
     h_res = 5e-3
     dx, dy = h_res, h_res
 
@@ -67,15 +66,16 @@ def main():
     Pr = nu / kap
     Gr = (grav * beta * Ly**3 * theta) / nu**2
     Ra = Pr * Gr
+    print(f"Prandtl number : {Pr:.3e}")
+    print(f"Grashof number : {Gr:.3e}")
+    print(f"Rayleigh number: {Ra:.3e}")
 
     # boundary condition
-    bc = "natural"  # "natural" / "periodic"
-    # bc = "essential"  # "natural" / "periodic"
-    # bc = "periodic"  # "natural" / "periodic"
+    bc = "periodic"  # "essential" / "natural" / "periodic"
 
     # path
-    # path_res = Path(f"res_2D_Pr{Pr:.6e}_Ra{Ra:.6e}_{bc}")
     path_res = Path(f"res_2D_test")
+    # path_res = Path(f"res_2D_Pr{Pr:.3e}_Ra{Ra:.3e}_{bc}")
     path_res.mkdir(exist_ok=True)
 
     # variables

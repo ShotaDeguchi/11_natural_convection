@@ -37,8 +37,8 @@ def main():
     np.random.seed(42)
 
     # domain
-    Lx, Ly, Lz = 1., 1., .1
-    h_res = 4e-3
+    Lx, Ly, Lz = 2., 2., 1.
+    h_res = 1e-2
     dx, dy, dz = h_res, h_res, h_res
 
     # arakawa-b grid
@@ -52,8 +52,8 @@ def main():
 
     print(f"Nx_vel: {Nx_vel:d}, Ny_vel: {Ny_vel:d}, Nz_vel: {Nz_vel:d}")
     print(f"Nx_prs: {Nx_prs:d}, Ny_prs: {Ny_prs:d}, Nz_prs: {Nz_prs:d}")
-    dof = Nx_vel * Ny_vel * Nz_vel * 3 + Nx_prs * Ny_prs * Nz_prs
-    print(f"DOF: {dof:d}")
+    n_dof = Nx_vel * Ny_vel * Nz_vel * 3 + Nx_prs * Ny_prs * Nz_prs
+    print(f"DOF: {n_dof:d}")
 
     # boundary temperature
     h0, h1 = 20., 100.
@@ -78,9 +78,7 @@ def main():
     print(f"Rayleigh number: {Ra:.3e}")
 
     # boundary condition
-    # bc = "essential"  # "natural" / "periodic"
-    # bc = "natural"  # "natural" / "periodic"
-    bc = "periodic"  # "natural" / "periodic"
+    bc = "essential"  # "essential" / "natural" / "periodic"
 
     # path
     path_res = Path(f"res_3D_test")
@@ -251,7 +249,7 @@ def main():
         print(f"\n****************************************************************")
         print(f"[MAIN] t: {t:.3f} / {T:.3f}")
         print(f"[MAIN] it_vel: {it_vel:06d} / {maxiter_vel:06d}")
-        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}, DOF: {dof:d}")
+        print(f"[MAIN] dx: {dx:.3e}, dt: {dt:.3e}, DOF: {n_dof:d}")
         print(f"[MAIN] res_vel: {res_vel:.6e} / {tol_vel:.6e}")
 
         C = np.max(np.abs(u) * dt / dx + np.abs(v) * dt / dy + np.abs(w) * dt / dz)
